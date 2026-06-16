@@ -1,4 +1,4 @@
-[build-system]
+﻿[build-system]
 requires = ["setuptools>=65.0"]
 build-backend = "setuptools.build_meta"
 
@@ -20,6 +20,7 @@ dependencies = [
     "oomtm @ git+https://github.com/mtm-aarhus/oomtm.git@main",
     "requests >= 2.31",
     "PyMuPDF >= 1.24",
+    "Pillow >= 10",
 ]
 # PyMuPDF does the true redaction (removes the text/image under each box). oomtm
 # provides SharePoint download/upload. No Tesseract / OCR here — the boxes come
