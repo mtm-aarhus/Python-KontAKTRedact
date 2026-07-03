@@ -67,29 +67,54 @@ def process(
 def _apply(orchestrator_connection, client, case_id, doc_id):
     info = _fetch_redactions(client, case_id, doc_id)
     rects = info.get("rects") or []
-    sharepoint_url = (info.get("sharepoint_url") or "").strip()
-    if not sharepoint_url:
-        return {"ok": False, "note": "Dokumentet har ingen SharePoint-fil."}
     if not rects:
         return {"ok": False, "note": "Ingen overstregninger at anvende."}
-
-    server_relative = unquote(urlparse(sharepoint_url).path)
-    folder_path = posixpath.dirname(server_relative)
-    filename = posixpath.basename(server_relative)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         work = Path(tmpdir)
         src = work / "original.pdf"
-        sp.download_file(client.sp_ctx, file_path=server_relative, local_path=str(src))
+        if not _fetch_content(client, case_id, doc_id, src):
+            return {"ok": False, "note": "Dokumentet har ingen fil at redigere."}
 
-        out = work / filename  # same name → replaces the original on upload
+        out = work / "redacted.pdf"
         applied = redaction.redact_pdf(str(src), str(out), rects, log=orchestrator_connection.log_info)
 
         sha = _sha256_hex(out)
         size = out.stat().st_size
-        sp.upload_file(client.sp_ctx, folder_path=folder_path, local_file=str(out), overwrite=True)
+        # Store the redacted PDF back (id-addressed → same file, keeps its name).
+        _store_file(client, case_id, doc_id, out)
 
     return {"ok": True, "applied": applied, "sha256": sha, "file_size_bytes": size}
+
+
+def _fetch_content(client, case_id, doc_id, local_path) -> bool:
+    """Stream a document's stored bytes from KontAKT to ``local_path``. False if
+    the file isn't in the store (404)."""
+    r = requests.get(
+        f"{client.kontakt_base}/api/v1/cases/{case_id}/documents/{doc_id}/content",
+        headers={"X-API-Key": client.kontakt_key}, timeout=300, stream=True,
+    )
+    if r.status_code == 404:
+        return False
+    r.raise_for_status()
+    with open(local_path, "wb") as fh:
+        for chunk in r.iter_content(1 << 20):
+            if chunk:
+                fh.write(chunk)
+    return True
+
+
+def _store_file(client, case_id, doc_id, local_path):
+    """POST the redacted PDF back into KontAKT's local store (no filename → keeps
+    the document's current name)."""
+    with open(local_path, "rb") as fh:
+        r = requests.post(
+            f"{client.kontakt_base}/api/v1/cases/{case_id}/documents/{doc_id}/store",
+            params={"kind": "pdf"},
+            headers={"X-API-Key": client.kontakt_key, "Content-Type": "application/octet-stream"},
+            data=fh, timeout=600,
+        )
+    r.raise_for_status()
 
 
 def _sha256_hex(path: Path) -> str:
