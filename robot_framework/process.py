@@ -2,39 +2,33 @@
 
 Queue-driven, one queue element per document. For a single document it:
 
-  1. fetches the saved redaction boxes (+ the SharePoint URL) from KontAKT,
-  2. downloads the PDF from SharePoint,
+  1. fetches the saved redaction boxes from KontAKT,
+  2. downloads the PDF from KontAKT's local file store (GET .../content),
   3. applies TRUE redaction (PyMuPDF — removes the text/image under each box),
-  4. uploads the redacted PDF back to SharePoint, replacing the original file,
+  4. stores the redacted PDF back (POST .../store), replacing the original,
   5. reports back to KontAKT (new file hash + size; the doc is marked 'redacted').
 
-Replacing the file in place keeps the SharePoint copy release-safe; the original
-is still in GO/Nova if needed. The new file hash lets KontAKT bust its PDF cache
-so the editor and "Åbn" show the redacted version.
+The store is id-addressed, so the redacted PDF keeps the document's name. The
+original is still in GO/Nova if needed. The new file hash lets KontAKT bust its
+PDF cache so the editor and "Åbn" show the redacted version.
 
 Queue payload (set by KontAKT's "Anvend overstregninger" action):
     {"kontakt_case_id": 11, "doc_id": 42}
 
 OO config:
-    Constant   KontAKTSharePoint      — SharePoint site URL
-    Credential SharePointCert         — username = thumbprint, password = cert path
-    Credential SharePointAPI          — username = tenant,     password = client id
     Credential KontAKTAPI             — username = base URL,    password = X-API-Key
 """
 from OpenOrchestrator.orchestrator_connection.connection import OrchestratorConnection
 from OpenOrchestrator.database.queues import QueueElement
 import hashlib
 import json
-import posixpath
 import tempfile
 from pathlib import Path
-from urllib.parse import unquote, urlparse
 
 import requests
 
 from robot_framework import reset
 from robot_framework import redaction
-from oomtm import sharepoint as sp
 
 
 def process(
