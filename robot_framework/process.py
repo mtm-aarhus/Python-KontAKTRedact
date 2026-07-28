@@ -123,7 +123,7 @@ def _sha256_hex(path: Path) -> str:
 
 
 def _fetch_redactions(client, case_id, doc_id):
-    """GET the saved redaction boxes + SharePoint URL for this document."""
+    """GET the saved redaction boxes for this document."""
     r = requests.get(
         f"{client.kontakt_base}/api/v1/cases/{case_id}/documents/{doc_id}/redactions",
         headers={"X-API-Key": client.kontakt_key},

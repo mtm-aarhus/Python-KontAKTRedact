@@ -3,7 +3,7 @@
 For this robot the "state" is just the cached KontAKT credentials. ``open_all``
 caches them and returns a :class:`Client`; ``reset`` re-reads them, so the queue
 framework can reconnect on a retry. Documents are read from and written back to
-KontAKT's local file store over the API, so no SharePoint connection is needed.
+KontAKT's local file store over the API, so no external connection is needed.
 """
 
 from OpenOrchestrator.orchestrator_connection.connection import OrchestratorConnection
